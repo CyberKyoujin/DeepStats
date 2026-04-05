@@ -45,6 +45,7 @@ class RefreshToken(Base):
     token: Mapped[str] = mapped_column(String(512), unique=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used: Mapped[bool] = mapped_column(default=False)
     
     user: Mapped["User"] = relationship(back_populates="tokens")
     

@@ -1,7 +1,7 @@
 from datetime import timedelta, timezone
 from datetime import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from schemas import LoginUser, CreateUser
 from db import RefreshToken, User as UserModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,8 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from security import PasswordHelper, JwtHelper
 from fastapi import Cookie
+from limiter import limiter
+
 
 router = APIRouter(
     prefix="/auth",
@@ -42,7 +44,8 @@ async def signup(user: CreateUser, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", status_code=200)
-async def signin(user: LoginUser, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def signin(request: Request, user: LoginUser, db: AsyncSession = Depends(get_db)):
     
     query = select(UserModel).where(UserModel.email == user.email)
     
@@ -71,7 +74,9 @@ async def signin(user: LoginUser, db: AsyncSession = Depends(get_db)):
     return response
 
 @router.post("/refresh", status_code=200)
-async def refresh(refresh_token: str = Cookie(None), db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def refresh(request: Request, refresh_token: str = Cookie(None), db: AsyncSession = Depends(get_db)):
+    
     if not refresh_token:
         raise HTTPException(status_code=400, detail="Refresh token missing.")
     

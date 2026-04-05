@@ -1,10 +1,10 @@
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from db import RefreshToken
 from config import settings
-from jose import jwt
+from jose import jwt, ExpiredSignatureError, JWTError
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,9 +59,11 @@ class JwtHelper:
         try:
             payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
             return payload
-        except Exception as e:
+        except ExpiredSignatureError as e:
+            raise HTTPException(status_code=401, detail="Token has expired.")
+        except JWTError as e:
             raise HTTPException(status_code=401, detail="Invalid authentication credentials.")
-        
+
     @staticmethod
     async def rotate_tokens(old_token: str, db: AsyncSession) -> tuple[str, str]:
         
@@ -75,11 +77,21 @@ class JwtHelper:
         if not token_entry or token_entry.is_expired or payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid or expired refresh token.")
         
+        # If token has already been used, delete it and reject the request to prevent reuse
+        if token_entry.used:
+            
+            stmt = delete(RefreshToken).where(RefreshToken.user_id == payload.get("sub"))
+            await db.execute(stmt)
+            await db.commit()
+            
+            raise HTTPException(status_code=401, detail="Refresh token has already been used.")
+        
+        token_entry.used = True  # Mark old token as used
+        
         access, refresh = JwtHelper.generate_tokens(payload.get("sub"))
         
         new_refresh_token = RefreshToken(token=refresh, user_id=int(payload.get("sub")), expires_at=datetime.now() + timedelta(days=30))
         
-        await db.delete(token_entry)
         db.add(new_refresh_token)
         await db.commit()
         

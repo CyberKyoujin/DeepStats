@@ -12,10 +12,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+
+from limiter import limiter
 
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(auth.router)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, lambda request, exc: JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Try again later."}))
 
 @app.get("/user", response_model=list[User])
 async def user_list(db: AsyncSession = Depends(get_db)):
@@ -37,9 +43,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
-    
 # EXCEPTION HANDLERS
 
 # Handle validation errors to provide clearer messages about missing fields
@@ -52,3 +55,7 @@ async def validation_exception_handler(request, exc):
         status_code=422,
         content={"detail": f"Required fields missing: {', '.join(missing_fields)}"}
     )
+    
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    
