@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     
     cors_origins: str
     
+    # Bybit API credentials
+    bybit_api_key: str
+    bybit_api_secret: str
+    
     model_config = SettingsConfigDict(env_file=".env")
 
 settings = Settings()
