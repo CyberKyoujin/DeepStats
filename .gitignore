@@ -24,3 +24,6 @@ migrations/versions/*.pyc
 # OS
 .DS_Store
 Thumbs.db
+
+# Resources
+backend/resources/ReportHistory-*.html

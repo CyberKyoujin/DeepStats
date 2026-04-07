@@ -4,10 +4,8 @@ import time
 import hmac
 from config import settings
 
- 
 api_key=settings.bybit_api_key
 secret_key=settings.bybit_api_secret
-
 
 # BYBIT HTTP Requests Configurator
 
