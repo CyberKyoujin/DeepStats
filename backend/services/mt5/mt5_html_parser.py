@@ -1,17 +1,37 @@
 from bs4 import BeautifulSoup
+from constants import ALLOWED_HEADERS, ALLOWED_STOP_HEADERS, COLUMN_TRANSLATIONS
 
+"""
+Parse MT5 HTML report and extract trade data (EN, RU, DE, UA). 
+"""
 
 def parse_mt5_html(raw_html: bytes) -> list:
-    
-    soup = BeautifulSoup(raw_html, 'html.parser')
 
-    # Find the "Positions" header to locate the positions table
-    positions_header = soup.find('th', string=lambda t: t and "Positions" in t)
+    # First, attempt to decode the HTML using UTF-8. If it fails, try UTF-16LE. 
+    try:
+        soup = BeautifulSoup(raw_html, 'html.parser')
+        if not soup.find('th'):
+            soup = BeautifulSoup(raw_html, 'html.parser', from_encoding='utf-16-le')
+    except Exception:
+        soup = BeautifulSoup(raw_html, 'html.parser', from_encoding='utf-16-le')
+
+    decoded_html = str(soup)
     
+    # Handle edge cases where the report might be empty or incomplete
+    if not decoded_html.strip():
+        raise ValueError("Report is empty")
+    
+    # Check for the presence of the closing </html> tag to ensure we have a complete document.
+    if "</html>" not in decoded_html.lower():
+        raise ValueError("Incomplete Report")
+
+    # Search for the "Positions" section header
+    positions_header = soup.find(lambda tag: tag.name == 'th' and any(h in tag.get_text() for h in ALLOWED_HEADERS))
+
     if not positions_header:
-        return []
+        raise ValueError("Invalid MT5 Report: 'Positions' section not found.")
 
-    # Find the row with column names - the first <tr> after the header where all cells are bold
+    # Find the row with column headers (the first row after the section header, where cells are bold)
     positions_row = positions_header.find_parent("tr")
     header_row = None
     
@@ -21,66 +41,66 @@ def parse_mt5_html(raw_html: bytes) -> list:
             header_row = sibling
             break
     
-    # TODO: Add more robust handling of edge cases - missing columns, different column order, etc.
     if not header_row:
-        return []
+        raise ValueError("Invalid MT5 Report: Column headers not found in 'Positions' section.")
 
-    # Build col_map with renaming of duplicates (Time to Time, Time to Time_2)
-    col_map = {}
-    seen = {}
+    # Build a mapping from column index to internal keys based on the header row
+    index_to_key = {}
+    seen_counts = {}
     
     for idx, td in enumerate(header_row.find_all("td")):
-        name = td.get_text(strip=True)
-        if not name:
+        raw_name = td.get_text(strip=True).lower()
+        if not raw_name:
             continue
-        if name in seen:
-            seen[name] += 1
-            col_map[f"{name}_{seen[name]}"] = idx
-        else:
-            seen[name] = 1
-            col_map[name] = idx
+            
+        for internal_key, translations in COLUMN_TRANSLATIONS.items():
+            if any(t.lower() == raw_name for t in translations):
+                count = seen_counts.get(internal_key, 0) + 1
+                seen_counts[internal_key] = count
+                final_key = internal_key if count == 1 else f"{internal_key}_{count}"
+                index_to_key[idx] = final_key
+                break
 
     trades = []
-
     for row in header_row.find_next_siblings("tr"):
-        # Stop parsing when we reach the next section "Orders"
-        if row.find("th", string=lambda t: t and "Orders" in t):
+        # Stop parsing when we reach the next section (e.g., "Orders"), which indicates the end of the "Positions" table   
+        if row.find(lambda tag: tag.name == 'th' and any(h in tag.get_text() for h in ALLOWED_STOP_HEADERS)):
             break
-
-        # Filter out hidden td elements — they shift the indices relative to the header
+        
+        # Filter out hidden columns
         cols = [td for td in row.find_all("td") if "hidden" not in td.get("class", [])]
 
-        # Skip rows with insufficient number of columns (totals, empty)
         if len(cols) < 5:
             continue
 
-        def get_val(name):
-            idx = col_map.get(name)
-            if idx is not None and idx < len(cols):
-                return cols[idx].get_text(strip=True).replace('\xa0', '').strip()
-            return ""
+        row_data = {}
+        for idx, key in index_to_key.items():
+            if idx < len(cols):
+                val = cols[idx].get_text(strip=True).replace('\xa0', '').strip()
+                row_data[key] = val
 
+        # Map the extracted data to the standardized trade format
         trade = {
-            "open_time":    get_val("Time"),
-            "position_id":  get_val("Position"),
-            "symbol":       get_val("Symbol"),
-            "type":         get_val("Type"),
-            "volume":       get_val("Volume"),
-            "open_price":   get_val("Price"),
-            "sl":           get_val("S / L"),
-            "tp":           get_val("T / P"),
-            "close_time":   get_val("Time_2"),
-            "close_price":  get_val("Price_2"),
-            "commission":   get_val("Commission"),
-            "swap":         get_val("Swap"),
-            "profit":       get_val("Profit").replace(" ", ""),
+            "open_time":   row_data.get("open_time", ""),
+            "position_id": row_data.get("position_id", ""),
+            "symbol":      row_data.get("symbol", ""),
+            "type":        row_data.get("type", ""),
+            "volume":      row_data.get("volume", ""),
+            "open_price":  row_data.get("open_price", ""),
+            "sl":          row_data.get("sl", ""),
+            "tp":          row_data.get("tp", ""),
+            "close_time":  row_data.get("open_time_2", ""), # Close time
+            "close_price": row_data.get("open_price_2", ""), # Close price
+            "commission":  row_data.get("commission", "0.00"),
+            "swap":        row_data.get("swap", "0.00"),
+            "profit":      row_data.get("profit", "0.00"),
         }
 
+        # Validation: if there's no symbol or open time, the row is garbage
         if not trade["symbol"] or not trade["open_time"]:
             continue
 
         trades.append(trade)
 
     return trades
-
 
