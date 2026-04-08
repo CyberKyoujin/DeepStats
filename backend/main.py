@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi import Depends
 from db import get_db
-from routers import auth
+from routers import auth, meta_trader
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
 from fastapi.exceptions import RequestValidationError
@@ -19,18 +19,10 @@ from limiter import limiter
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(auth.router)
+app.include_router(meta_trader.router)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, lambda request, exc: JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Try again later."}))
-
-@app.get("/user", response_model=list[User])
-async def user_list(db: AsyncSession = Depends(get_db)):
-    
-    query = select(UserModel)
-    
-    result = await db.execute(query)
-    
-    return result.scalars().all()
 
 
 # MIDDLWARE SETTINGS (CORS)

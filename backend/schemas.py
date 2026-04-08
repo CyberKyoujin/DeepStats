@@ -5,7 +5,6 @@ class User(BaseModel):
     id: int
     email: str
     username: str
-    password: str
 
 
 class CreateUser(BaseModel):

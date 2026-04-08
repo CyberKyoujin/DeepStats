@@ -71,16 +71,19 @@ class JwtHelper:
         
         result = await db.execute(query)
         token_entry = result.scalars().first()
+        
+        if not token_entry or token_entry.is_expired:
+            raise HTTPException(status_code=401, detail="Invalid or expired refresh token.")
     
         payload = JwtHelper.verify_token(old_token)
         
-        if not token_entry or token_entry.is_expired or payload.get("type") != "refresh":
-            raise HTTPException(status_code=401, detail="Invalid or expired refresh token.")
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type.")
         
         # If token has already been used, delete it and reject the request to prevent reuse
         if token_entry.used:
             
-            stmt = delete(RefreshToken).where(RefreshToken.user_id == payload.get("sub"))
+            stmt = delete(RefreshToken).where(RefreshToken.user_id == int(payload.get("sub")))
             await db.execute(stmt)
             await db.commit()
             

@@ -24,3 +24,7 @@ async def verify_user(token: Annotated[str, Depends(oauth2scheme)], db: AsyncSes
         raise HTTPException(status_code=401, detail="Invalid token")
     
     return user
+
+# Create a type alias for the authenticated user dependency to simplify usage in route handlers
+
+AuthenticatedUser = Annotated[User, Depends(verify_user)]
