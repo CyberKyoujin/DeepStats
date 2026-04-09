@@ -17,60 +17,70 @@ class BybitHttpHelper:
         self.secret_key = secret_key
         self.recv_window = str(5000)
         self.base_url = "https://api.bybit.com"
-
         
     def _generate_signature(self, timestamp: str, payload: str) -> str:
         param_str = timestamp + self.api_key + self.recv_window + payload   
         hash = hmac.new(bytes(self.secret_key, "utf-8"), param_str.encode("utf-8"), hashlib.sha256)
         return hash.hexdigest()
     
-    async def get_trade_history(self, category: str = "linear", symbol: str = None):
+    async def get_trade_history(self, category: str = "linear", endpoint: str = "/v5/position/closed-pnl") -> list[dict]:
         
-        endpoint = "/v5/position/closed-pnl"
         method = "GET"     
         
         params = f"category={category}"
+    
+        response_objects = []
         
-        if symbol:
-            params += f"&symbol={symbol}"
-            
-        timestamp = str(int(time.time() * 1000))
-        signature = self._generate_signature(timestamp, params)
-            
-        headers = {
-            "X-BAPI-API-KEY": self.api_key,
-            "X-BAPI-SIGN": signature,
-            "X-BAPI-SIGN-TYPE": "2",
-            "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": self.recv_window,
-            "Content-Type": "application/json"
-        }
-        
-        url = f"{self.base_url}{endpoint}?{params}"
-        
+        # Initialize client
         async with httpx.AsyncClient() as client:
-            result = await client.request(method=method, url=url, headers=headers)
+            
+            while True:
+                
+                # Generate authentication headers on each iteration for long pagination cases
+                timestamp = str(int(time.time() * 1000))
+                
+                signature = self._generate_signature(timestamp, params)
+                    
+                headers = {
+                    "X-BAPI-API-KEY": self.api_key,
+                    "X-BAPI-SIGN": signature,
+                    "X-BAPI-SIGN-TYPE": "2",
+                    "X-BAPI-TIMESTAMP": timestamp,
+                    "X-BAPI-RECV-WINDOW": self.recv_window,
+                    "Content-Type": "application/json"
+                }
+                
+                url = f"{self.base_url}{endpoint}?{params}"
         
-        if result.status_code != 200:
-            raise BybitAPIError(result.status_code, result.text)
+                result = await client.request(method=method, url=url, headers=headers)
+            
+                # Handle HTTP error
+                if result.status_code != 200:
+                    raise BybitAPIError(result.status_code, result.text)
+                
+                data = result.json()
+                
+                # Handle Bybit Internal Exception
+                if data.get("retCode") != 0:
+                    raise BybitAPIError(data.get("retCode"), data.get("retMsg"))
+            
+                trades_data = data.get("result", {}).get("list", [])
+            
+                response_objects.extend(trades_data)
+                
+                # Extract pagination object
+                cursor = data.get("result", {}).get("nextPageCursor")
+                
+                # If not available - exit
+                if not cursor or not trades_data:
+                    break
+                
+                # Otherwise add to params
+                params += f"&cursor={cursor}" 
         
-        data = result.json()
-        
-        if data.get("retCode") != 0:
-            raise BybitAPIError(data.get("retCode"), data.get("retMsg"))
-        
-        return data.get("result", {}).get("list", [])
+        return response_objects
     
-if __name__ == "__main__":
-    
-    import sys
-    import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    
-    helper = BybitHttpHelper(api_key, secret_key)
-    
-    import asyncio
-    trades = asyncio.run(helper.get_trade_history())
-    for trade in trades:
-        print(trade)
+    # Getting order history for matching SL and TP values.
+    async def get_order_history(self) -> list[dict]:
+        return await self.get_trade_history(endpoint="/v5/order/history")
     

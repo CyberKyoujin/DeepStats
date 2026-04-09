@@ -5,8 +5,6 @@ from constants import ALLOWED_HEADERS, ALLOWED_STOP_HEADERS, COLUMN_TRANSLATIONS
 Parse MT5 HTML report and extract trade data (EN, RU, DE, UA). 
 """
 
-# TODO: Add pagination parsing for reports with multiple pages of trades (e.g., 50+ trades)
-
 def parse_mt5_html(raw_html: bytes) -> list:
 
     # First, attempt to decode the HTML using UTF-8. If it fails, try UTF-16LE. 

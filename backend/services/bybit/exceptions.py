@@ -6,6 +6,7 @@
 BYBIT_ERROR_CODES = {
     10000: "Server timeout",
     10001: "Request parameter error",
+    10002: "Server time desynchronization",
     10003: "Invalid API key",
     10007: "User authentication failed",
     10006: "Too many requests",
