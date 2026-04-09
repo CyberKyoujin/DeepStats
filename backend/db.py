@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import String, ForeignKey, DateTime
+from sqlalchemy import String, ForeignKey, DateTime, Text
 from config import settings
 from fastapi import FastAPI
 from datetime import datetime
@@ -38,6 +38,7 @@ class User(Base):
     password: Mapped[str] = mapped_column()
     
     tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user", cascade="all, delete-orphan", passive_deletes=True)
+    bybit_credentials: Mapped[list["BybitCredentials"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 class RefreshToken(Base):
     __tablename__ = "refresh_token"
@@ -53,3 +54,11 @@ class RefreshToken(Base):
     def is_expired(self) -> bool:
         return datetime.now() > self.expires_at
     
+class BybitCredentials(Base):
+    __tablename__ = "bybit_api_credentials"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    api_key: Mapped[str] = mapped_column(Text, index=True)
+    api_secret: Mapped[str] = mapped_column(Text, index=True)
+    
+    user: Mapped["User"] = relationship(back_populates="bybit_credentials")

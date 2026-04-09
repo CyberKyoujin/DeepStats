@@ -16,3 +16,6 @@ class LoginUser(BaseModel):
     email: str
     password: str
 
+class StoreBybitApiKeys(BaseModel):
+    api_key: str
+    api_secret: str

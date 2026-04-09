@@ -22,6 +22,44 @@ class BybitHttpHelper:
         param_str = timestamp + self.api_key + self.recv_window + payload   
         hash = hmac.new(bytes(self.secret_key, "utf-8"), param_str.encode("utf-8"), hashlib.sha256)
         return hash.hexdigest()
+
+    def _configure_headers(self, params: str) -> str:
+        
+        timestamp = str(int(time.time() * 1000))
+        signature = self._generate_signature(timestamp, params)
+        
+        headers = {
+            "X-BAPI-API-KEY": self.api_key,
+            "X-BAPI-SIGN": signature,
+            "X-BAPI-SIGN-TYPE": "2",
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": self.recv_window,
+            "Content-Type": "application/json"
+        }
+        
+        return headers
+    
+    async def verify_api_credentials(self) -> bool:
+        
+        method = "GET"
+        
+        headers = self._configure_headers(params="")
+        
+        url = f"{self.base_url}/v5/user/query-api"
+        
+        async with httpx.AsyncClient() as client:
+            result = await client.request(method=method, url=url, headers=headers)
+            
+            data = result.json()
+            
+            if result.status_code != 200:
+                raise BybitAPIError(result.status_code, result.text)
+
+            if data.get("retCode") != 0:
+                raise BybitAPIError(data.get("retCode"), data.get("retMsg"))
+        
+        return True
+        
     
     async def get_trade_history(self, category: str = "linear", endpoint: str = "/v5/position/closed-pnl") -> list[dict]:
         
@@ -37,18 +75,7 @@ class BybitHttpHelper:
             while True:
                 
                 # Generate authentication headers on each iteration for long pagination cases
-                timestamp = str(int(time.time() * 1000))
-                
-                signature = self._generate_signature(timestamp, params)
-                    
-                headers = {
-                    "X-BAPI-API-KEY": self.api_key,
-                    "X-BAPI-SIGN": signature,
-                    "X-BAPI-SIGN-TYPE": "2",
-                    "X-BAPI-TIMESTAMP": timestamp,
-                    "X-BAPI-RECV-WINDOW": self.recv_window,
-                    "Content-Type": "application/json"
-                }
+                headers = self._configure_headers(params=params)
                 
                 url = f"{self.base_url}{endpoint}?{params}"
         
@@ -83,4 +110,6 @@ class BybitHttpHelper:
     # Getting order history for matching SL and TP values.
     async def get_order_history(self) -> list[dict]:
         return await self.get_trade_history(endpoint="/v5/order/history")
+    
+    
     

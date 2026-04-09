@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     bybit_api_key: str
     bybit_api_secret: str
     
+    # Encryption key for sensitive data (e.g., API keys, tokens)
+    encryption_key: str
+    
     model_config = SettingsConfigDict(env_file=".env")
 
 settings = Settings()

@@ -1,6 +1,6 @@
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
-
+from cryptography.fernet import Fernet
 from sqlalchemy import select, delete
 from db import RefreshToken
 from config import settings
@@ -99,7 +99,19 @@ class JwtHelper:
         await db.commit()
         
         return access, refresh
-        
-        
-        
+
+# HELPER FOR ENCRYPTING SENSITIVE DATA (e.g., API keys, tokens)
+class EncryptionHelper:
+    
+    _fernet = Fernet(settings.encryption_key)
+    
+    @staticmethod
+    def encrypt_data(data: str) -> str:
+        return EncryptionHelper._fernet.encrypt(data.encode()).decode()
+    
+    @staticmethod
+    def decrypt_data(encrypted_data: str) -> str:
+        # Placeholder for decryption logic
+        return EncryptionHelper._fernet.decrypt(encrypted_data.encode()).decode()
+
         
