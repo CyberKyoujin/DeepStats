@@ -1,5 +1,5 @@
 from bs4 import BeautifulSoup
-from constants import ALLOWED_HEADERS, ALLOWED_STOP_HEADERS, COLUMN_TRANSLATIONS
+from .constants import ALLOWED_HEADERS, ALLOWED_STOP_HEADERS, COLUMN_TRANSLATIONS
 
 """
 Parse MT5 HTML report and extract trade data (EN, RU, DE, UA). 
@@ -87,8 +87,8 @@ def parse_mt5_html(raw_html: bytes) -> list:
             "direction":   row_data.get("type", ""),
             "volume":      row_data.get("volume", ""),
             "open_price":  row_data.get("open_price", ""),
-            "sl":          row_data.get("sl", ""),
-            "tp":          row_data.get("tp", ""),
+            "stop_loss":   row_data.get("sl", ""),
+            "take_profit": row_data.get("tp", ""),
             "close_time":  row_data.get("open_time_2", ""), # Close time
             "close_price": row_data.get("open_price_2", ""), # Close price
             "commission":  row_data.get("commission", "0.00"),

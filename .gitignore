@@ -1,29 +1,53 @@
-# Python
+# ─── Python ───────────────────────────────────────────────────────────────────
 venv/
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage/
+.coverage
+htmlcov/
 
-# Environment
+# ─── Environment ──────────────────────────────────────────────────────────────
 .env
-*.env
+.env.*
+!.env.example
 
-# Database
+# ─── Database ─────────────────────────────────────────────────────────────────
 *.db
 *.sqlite3
 
-# IDE
+# ─── Frontend ─────────────────────────────────────────────────────────────────
+node_modules/
+client-frontend/dist/
+client-frontend/.vite/
+*.local
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── IDE ──────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 
-# Alembic
-migrations/versions/*.pyc
-
-# OS
+# ─── OS ───────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# Resources
+# ─── Alembic ──────────────────────────────────────────────────────────────────
+backend/migrations/versions/*.pyc
+
+# ─── Resources ────────────────────────────────────────────────────────────────
 backend/resources/ReportHistory-*.html
+
+# ─── Project ──────────────────────────────────────────────────────────────────
+CLAUDE.md
