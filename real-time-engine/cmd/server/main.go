@@ -17,72 +17,86 @@ type Tick struct {
     Timestamp time.Time // когда пришёл тик
 }
 
-type ExchangeConnector interface {
-	Connect(ctx context.Context) error
-	Subscribe() error
-	Ticks() <-chan Tick
-	Close() error
+type RingBuffer[T any] interface {
+	Push(v T) error
+	Last(n int) []T
+	All() []T
+	Len() int
 }
 
-type BybitConnector struct {
-	mu 			sync.Mutex
-	connected	bool
+type PriceSlidingWindow[T any] interface {
+	GetLastPrices([] T) []float64 
+	Sma([] float64) 	float64
+	Ema([] float64) 	float64
+	Std([] float64) 	float64
 }
 
-type MockConnector struct {}
-
-func (b *BybitConnector) Connect (ctx context.Context) error {return nil}
-func (b *BybitConnector) Subscribe (symbols []string) error {return nil}
-func (b *BybitConnector) Ticks () <-chan Tick {return  nil}
-func (b *BybitConnector) Close () error {return nil}
-
-func (b *MockConnector) Connect (ctx context.Context) error {return nil}
-func (b *MockConnector) Subscribe () error {return nil}
-
-func (b *MockConnector) Ticks () <-chan Tick {
-	ch := make(chan Tick)
-
-	go func () {
-		for {
-			ch <- Tick {
-				Symbol: "BTCUSDT",
-				LastPrice: 60000 + rand.Float64()*5000,
-                Volume:    rand.Float64()*100,
-			}
-			time.Sleep(500 * time.Millisecond)
-		}
-	} ()
-
-	return ch
-
+type BybitRingBuffer[T any] struct {
+	data	 []T
+	head	 int
+	Capacity int
+	Asset 	 string
+	Size	 int
 }
 
-func (b *MockConnector) Close () error {return nil}
+type BybitSlidingWindow struct {
+	LastPrices []float64
+	Size	   int
+	CurrSma	   float64 	
+	CurrEma	   float64	
+	CurStd 	   float64	
+}
 
-func RunFeed(conn ExchangeConnector, duration time.Duration) {
+func NewBybitRingBuffer[T any](capacity int, asset string) *BybitRingBuffer[T] {
 
-	conn.Connect(context.Background())
-	conn.Subscribe()
-
-	ticks := conn.Ticks()
-	timer := time.After(duration)
-
-	for {
-		select {
-		case tick := <-ticks:
-			fmt.Printf("%s: %.2f\n", tick.Symbol, tick.LastPrice)
-		case <-timer:
-			conn.Close()
-			return 
-		}
+	return &BybitRingBuffer[T]{
+		data: make([]T, capacity),
+		head: 0,
+		Capacity: capacity,
+		Asset: asset,
 	}
 
 }
 
+func NewBybitSLidingWindow(size int) *BybitSlidingWindow {
+
+	return &BybitSlidingWindow{
+		LastPrices: make([]float64, size),
+		Size: size,
+	}
+
+}
+
+// func (s *BybitSlidingWindow) GetLastPrices(r *BybitRingBuffer) float64 {
+
+// }
+
+// func (s *BybitSlidingWindow) Sma([]float64) float64 {
+	
+// }
+
+func (r *BybitRingBuffer[T]) Push(v T) {
+	r.data[r.head % r.Capacity] = v
+	r.head++
+	if r.Size < r.Capacity { r.Size++ }
+}
+
+func (r *BybitRingBuffer[T]) Last(n int) []T {
+	return r.data[len(r.data)-n:]
+}
+
+func (r *BybitRingBuffer[T]) All() []T {
+	if r.Size == r.Capacity { return r.data }
+
+	return r.data[r.Size:]
+}
+
+func (r *BybitRingBuffer[T]) Len() int {
+	return r.Size
+}
+
 func main() {
 
-	mockConn := &MockConnector{}
-
-	RunFeed(mockConn, 10*time.Second)
+	
 
 }
